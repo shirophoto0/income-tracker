@@ -294,7 +294,7 @@ def make_donut(labels, values, title):
 
 st.title("💰 Stock Photo Income Tracker")
 
-tab_log, tab_import, tab_dashboard = st.tabs(["📝 Log Income", "📂 Import Legacy Data", "📊 Dashboard"])
+tab_log, tab_import, tab_dashboard = st.tabs(["📊 Dashboard", "📝 Log Income", "📂 Import Legacy Data"])
 
 # ---- Tab: Log Income ----
 with tab_log:
