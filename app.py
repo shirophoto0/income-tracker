@@ -455,3 +455,27 @@ with tab_dashboard:
                 fig4 = make_donut(website_totals.index, website_totals.values, f"Income Share by Website ({scope_label})")
                 with row2_col2:
                     st.plotly_chart(fig4, use_container_width=True)
+
+            # Panel 5 & 6: average income per month, broken down by year (always all-years, pinned)
+            st.divider()
+            months_active_per_year = filtered.groupby("Year")["Month"].nunique()
+            total_per_year = filtered.groupby("Year")["THB"].sum()
+            avg_per_year = (total_per_year / months_active_per_year).sort_index()
+            avg_years_x = avg_per_year.index.astype(str)
+
+            fig5 = go.Figure(go.Bar(
+                x=avg_years_x, y=avg_per_year.values,
+                marker_color="#B8E0D2",
+                hovertemplate="<b>%{x}</b><br>Avg: %{y:,.0f} THB/month<extra></extra>",
+            ))
+            fig5.update_layout(title="Average Income per Month, by Year (THB)", **CHART_LAYOUT_DEFAULTS)
+            fig5.update_xaxes(tickangle=-45, showgrid=False)
+            fig5.update_yaxes(showgrid=True, gridcolor="#EEEEEE")
+
+            fig6 = make_line(avg_years_x, avg_per_year.values, "Average Income per Month, by Year — Trend (THB)")
+
+            row3_col1, row3_col2 = st.columns(2)
+            with row3_col1:
+                st.plotly_chart(fig5, use_container_width=True)
+            with row3_col2:
+                st.plotly_chart(fig6, use_container_width=True)
