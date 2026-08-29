@@ -20,7 +20,7 @@ WEBSITE_COLORS = {
     "123RF": "#D7C4F2", "Deposit": "#E3C9C1", "Freepik": "#FFCCE1", "Colorbox": "#D6D6D6",
 }
 TREND_LINE_COLOR = "#F6A9A9"
-INCOME_HEADERS = ["Year", "Month", "Website", "Currency", "Amount", "Entry Date", "Source"]
+INCOME_HEADERS = ["Year", "Month", "Website", "Currency", "Amount", "Entry Date", "Source", "Amount_THB"]
 MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 SHEET_NAME = st.secrets.get("INCOME_SHEET_NAME", "PhotoStockIncome")
@@ -58,24 +58,61 @@ def get_worksheet():
 
 def load_records():
     ws = get_worksheet()
-    data = ws.get_all_records()
-    if not data:
+    values = ws.get_all_values()
+    if len(values) < 2:
         return pd.DataFrame(columns=INCOME_HEADERS)
-    df = pd.DataFrame(data)
+
+    header = values[0]
+    rows = [list(r) for r in values[1:]]
+
+    # Migrate older sheets that don't have the Amount_THB column yet
+    if "Amount_THB" not in header:
+        ws.update_cell(1, len(header) + 1, "Amount_THB")
+        header = header + ["Amount_THB"]
+
+    thb_col = header.index("Amount_THB")
+    amount_col = header.index("Amount")
+    currency_col = header.index("Currency")
+
+    usd_rate, eur_rate, _ = fetch_rates()
+    changed = False
+    for r in rows:
+        while len(r) <= thb_col:
+            r.append("")
+        # Any row missing a locked THB value gets one computed now, then frozen permanently
+        if not str(r[thb_col]).strip():
+            try:
+                amount = float(r[amount_col])
+                currency = r[currency_col]
+                r[thb_col] = round(to_thb(amount, currency, usd_rate, eur_rate), 2)
+                changed = True
+            except (ValueError, IndexError):
+                pass
+
+    if changed and rows:
+        a1 = gspread.utils.rowcol_to_a1(1, thb_col + 1)
+        col_letter = "".join(ch for ch in a1 if ch.isalpha())
+        col_values = [[header[thb_col]]] + [[r[thb_col]] for r in rows]
+        ws.update(f"{col_letter}1:{col_letter}{len(rows) + 1}", col_values)
+
+    df = pd.DataFrame(rows, columns=header)
     df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
     df["Month"] = pd.to_numeric(df["Month"], errors="coerce")
     df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce")
-    df = df.dropna(subset=["Year", "Month", "Amount"])
+    df["Amount_THB"] = pd.to_numeric(df["Amount_THB"], errors="coerce")
+    df = df.dropna(subset=["Year", "Month", "Amount", "Amount_THB"])
     df["Year"] = df["Year"].astype(int)
     df["Month"] = df["Month"].astype(int)
     return df
 
 
 def save_entry(year, month, website, currency, amount):
+    usd_rate, eur_rate, _ = fetch_rates()
+    thb_value = to_thb(float(amount), currency, usd_rate, eur_rate)
     ws = get_worksheet()
     ws.append_row([
         int(year), int(month), website, currency, float(amount),
-        datetime.now().strftime("%Y-%m-%d %H:%M"), "Manual",
+        datetime.now().strftime("%Y-%m-%d %H:%M"), "Manual", round(thb_value, 2),
     ])
 
 
@@ -87,6 +124,7 @@ def already_has_imported_data():
 
 def import_legacy_excel(uploaded_file):
     import openpyxl
+    usd_rate, eur_rate, _ = fetch_rates()
     wb = openpyxl.load_workbook(uploaded_file, data_only=True)
     ws_src = wb.active
     headers = [str(c.value).strip() if c.value is not None else "" for c in ws_src[1]]
@@ -115,9 +153,10 @@ def import_legacy_excel(uploaded_file):
         for site in website_cols:
             amount = row[col_index[site]]
             if isinstance(amount, (int, float)) and amount != 0:
+                thb_value = to_thb(amount, WEBSITE_CURRENCY[site], usd_rate, eur_rate)
                 rows_to_add.append([
                     year, month, site, WEBSITE_CURRENCY[site], amount,
-                    datetime.now().strftime("%Y-%m-%d %H:%M"), "Imported",
+                    datetime.now().strftime("%Y-%m-%d %H:%M"), "Imported", round(thb_value, 2),
                 ])
 
     if not rows_to_add:
@@ -269,23 +308,19 @@ with tab_dashboard:
     if df.empty:
         st.info("No income data yet — import your legacy file or log income first.")
     else:
-        usd_default, eur_default, fetched_ok = fetch_rates()
+        usd_today, eur_today, fetched_ok = fetch_rates()
 
-        colf1, colf2, colf3, colf4 = st.columns(4)
+        colf1, colf2 = st.columns(2)
         with colf1:
             years_available = sorted(df["Year"].unique(), reverse=True)
             year_choice = st.selectbox("Year", ["All Years"] + [str(y) for y in years_available])
         with colf2:
             website_choice = st.selectbox("Website", ["All Websites"] + WEBSITES)
-        with colf3:
-            usd_rate = st.number_input("USD → THB", value=float(usd_default), step=0.01, format="%.4f")
-        with colf4:
-            eur_rate = st.number_input("EUR → THB", value=float(eur_default), step=0.01, format="%.4f")
 
         if fetched_ok:
-            st.caption("✅ Rates auto-updated today — source: frankfurter.dev")
+            st.caption(f"💱 THB values are locked in at the rate on the day each entry was logged. New entries today use 1 USD = {usd_today:.2f} THB, 1 EUR = {eur_today:.2f} THB (source: frankfurter.dev)")
         else:
-            st.caption("⚠️ Couldn't reach frankfurter.dev — using default rates. Edit the fields above if needed.")
+            st.caption("💱 THB values are locked in at the rate on the day each entry was logged.")
 
         filtered = df if website_choice == "All Websites" else df[df["Website"] == website_choice]
 
@@ -293,7 +328,7 @@ with tab_dashboard:
             st.warning(f"No data found for {website_choice}.")
         else:
             filtered = filtered.copy()
-            filtered["THB"] = filtered.apply(lambda r: to_thb(r["Amount"], r["Currency"], usd_rate, eur_rate), axis=1)
+            filtered["THB"] = filtered["Amount_THB"]
 
             show_all_years = year_choice == "All Years"
 
