@@ -8,6 +8,38 @@ import plotly.graph_objects as go
 
 st.set_page_config(page_title="Income Tracker", page_icon="💰", layout="wide")
 
+st.markdown("""
+<style>
+.metric-card {
+    background: #ffffff;
+    border: 1px solid #e6e6e6;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    padding: 16px 14px;
+    text-align: center;
+    margin-bottom: 14px;
+}
+.metric-card .metric-label {
+    font-size: 13px;
+    color: #888888;
+    margin-bottom: 6px;
+}
+.metric-card .metric-value {
+    font-size: 21px;
+    font-weight: 700;
+    color: #333333;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+def metric_card(label, value):
+    st.markdown(
+        f'<div class="metric-card"><div class="metric-label">{label}</div>'
+        f'<div class="metric-value">{value}</div></div>',
+        unsafe_allow_html=True,
+    )
+
 # ============================================
 WEBSITES = ["Shutterstock", "Adobe", "Getty", "Dreamtime", "123RF", "Deposit", "Freepik", "Colorbox"]
 WEBSITE_CURRENCY = {
@@ -358,10 +390,28 @@ with tab_dashboard:
             website_totals = scope.groupby("Website")["THB"].sum().sort_values(ascending=False)
             top_website = website_totals.idxmax() if not website_totals.empty else "-"
 
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total Income (THB)", f"{total_income:,.0f}")
-            c2.metric("Average per Month (THB)", f"{avg_per_month:,.0f}")
-            c3.metric("Top Website", top_website)
+            row1_c1, row1_c2 = st.columns(2)
+            with row1_c1:
+                metric_card("Total Income (THB)", f"{total_income:,.0f}")
+            with row1_c2:
+                metric_card("Average per Month (THB)", f"{avg_per_month:,.0f}")
+
+            if website_choice == "All Websites" and not website_totals.empty:
+                ranked = website_totals.sort_values(ascending=False)
+                top_group = ranked.iloc[:4]
+                rest_group = ranked.iloc[4:8]
+
+                if len(top_group) > 0:
+                    row2_cols = st.columns(len(top_group))
+                    for col, (site, val) in zip(row2_cols, top_group.items()):
+                        with col:
+                            metric_card(site, f"{val:,.0f}")
+
+                if len(rest_group) > 0:
+                    row3_cols = st.columns(len(rest_group))
+                    for col, (site, val) in zip(row3_cols, rest_group.items()):
+                        with col:
+                            metric_card(site, f"{val:,.0f}")
 
             st.divider()
 
