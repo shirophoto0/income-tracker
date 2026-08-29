@@ -2,6 +2,6 @@ streamlit
 pandas
 gspread
 google-auth
-matplotlib
 requests
 openpyxl
+plotly
