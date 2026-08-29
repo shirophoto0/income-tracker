@@ -168,9 +168,9 @@ def make_stacked_bar(categories, pivot_df, title):
     fig.update_layout(
         barmode="stack",
         title=title,
-        legend=dict(orientation="h", yanchor="bottom", y=1.08, xanchor="center", x=0.5),
+        legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02, font=dict(size=10)),
         hovermode="x unified",
-        **CHART_LAYOUT_DEFAULTS,
+        **{**CHART_LAYOUT_DEFAULTS, "margin": dict(t=55, b=40, l=40, r=140)},
     )
     fig.update_xaxes(tickangle=-45, showgrid=False)
     fig.update_yaxes(showgrid=True, gridcolor="#EEEEEE")
