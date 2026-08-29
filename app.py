@@ -4,7 +4,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 import requests
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 st.set_page_config(page_title="Income Tracker", page_icon="💰", layout="wide")
 
@@ -14,15 +14,25 @@ WEBSITE_CURRENCY = {
     "Shutterstock": "USD", "Adobe": "USD", "Getty": "USD", "Dreamtime": "USD",
     "123RF": "USD", "Deposit": "USD", "Freepik": "USD", "Colorbox": "EUR",
 }
+# Pastel palette — soft, muted, easy on the eyes
 WEBSITE_COLORS = {
-    "Shutterstock": "#1f77b4", "Adobe": "#ff7f0e", "Getty": "#2ca02c", "Dreamtime": "#d62728",
-    "123RF": "#9467bd", "Deposit": "#8c564b", "Freepik": "#e377c2", "Colorbox": "#7f7f7f",
+    "Shutterstock": "#AEDFF7", "Adobe": "#FFD8B8", "Getty": "#C3EDC0", "Dreamtime": "#FFB6B9",
+    "123RF": "#D7C4F2", "Deposit": "#E3C9C1", "Freepik": "#FFCCE1", "Colorbox": "#D6D6D6",
 }
+TREND_LINE_COLOR = "#F6A9A9"
 INCOME_HEADERS = ["Year", "Month", "Website", "Currency", "Amount", "Entry Date", "Source"]
 MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 SHEET_NAME = st.secrets.get("INCOME_SHEET_NAME", "PhotoStockIncome")
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+
+CHART_LAYOUT_DEFAULTS = dict(
+    template="plotly_white",
+    plot_bgcolor="rgba(0,0,0,0)",
+    paper_bgcolor="rgba(0,0,0,0)",
+    font=dict(family="Helvetica, Arial, sans-serif", size=13, color="#444444"),
+    margin=dict(t=55, b=40, l=40, r=30),
+)
 
 
 # ============================================
@@ -141,6 +151,63 @@ def to_thb(amount, currency, usd_rate, eur_rate):
 
 
 # ============================================
+# Chart builders (Plotly — pastel, interactive, native fullscreen)
+# ============================================
+
+def make_stacked_bar(categories, pivot_df, title):
+    fig = go.Figure()
+    for site in WEBSITES:
+        if site in pivot_df.columns and pivot_df[site].sum() > 0:
+            fig.add_trace(go.Bar(
+                x=categories,
+                y=pivot_df[site],
+                name=site,
+                marker_color=WEBSITE_COLORS.get(site, "#CCCCCC"),
+                hovertemplate=f"<b>{site}</b>: %{{y:,.0f}} THB<extra></extra>",
+            ))
+    fig.update_layout(
+        barmode="stack",
+        title=title,
+        legend=dict(orientation="h", yanchor="bottom", y=1.08, xanchor="center", x=0.5),
+        hovermode="x unified",
+        **CHART_LAYOUT_DEFAULTS,
+    )
+    fig.update_xaxes(tickangle=-45, showgrid=False)
+    fig.update_yaxes(showgrid=True, gridcolor="#EEEEEE")
+    return fig
+
+
+def make_line(x, y, title):
+    fig = go.Figure(go.Scatter(
+        x=x, y=y, mode="lines+markers",
+        line=dict(color=TREND_LINE_COLOR, width=3),
+        marker=dict(size=8, color=TREND_LINE_COLOR),
+        fill="tozeroy", fillcolor="rgba(246, 169, 169, 0.12)",
+        hovertemplate="<b>%{x}</b><br>%{y:,.0f} THB<extra></extra>",
+    ))
+    fig.update_layout(title=title, **CHART_LAYOUT_DEFAULTS)
+    fig.update_xaxes(tickangle=-45, showgrid=False)
+    fig.update_yaxes(showgrid=True, gridcolor="#EEEEEE")
+    return fig
+
+
+def make_donut(labels, values, title):
+    fig = go.Figure(go.Pie(
+        labels=labels, values=values, hole=0.55,
+        marker=dict(colors=[WEBSITE_COLORS.get(w, "#CCCCCC") for w in labels], line=dict(color="#FFFFFF", width=2)),
+        textinfo="percent",
+        textfont=dict(size=12, color="#444444"),
+        hovertemplate="<b>%{label}</b><br>%{value:,.0f} THB<br>%{percent}<extra></extra>",
+    ))
+    fig.update_layout(
+        title=title,
+        legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02, font=dict(size=11)),
+        **{**CHART_LAYOUT_DEFAULTS, "margin": dict(t=55, b=20, l=20, r=140)},
+    )
+    return fig
+
+
+# ============================================
 # UI
 # ============================================
 
@@ -216,7 +283,7 @@ with tab_dashboard:
             eur_rate = st.number_input("EUR → THB", value=float(eur_default), step=0.01, format="%.4f")
 
         if fetched_ok:
-            st.caption(f"✅ Rates auto-updated today — source: frankfurter.dev")
+            st.caption("✅ Rates auto-updated today — source: frankfurter.dev")
         else:
             st.caption("⚠️ Couldn't reach frankfurter.dev — using default rates. Edit the fields above if needed.")
 
@@ -251,62 +318,45 @@ with tab_dashboard:
             c2.metric("Average per Month (THB)", f"{avg_per_month:,.0f}")
             c3.metric("Top Website", top_website)
 
-            fig, axes = plt.subplots(2, 2, figsize=(13, 8))
+            st.divider()
+
+            row1_col1, row1_col2 = st.columns(2)
+            row2_col1, row2_col2 = st.columns(2)
 
             # Panel 1: main stacked bar
-            ax1 = axes[0, 0]
             if show_all_years:
                 pivot = filtered.pivot_table(index="Year", columns="Website", values="THB", aggfunc="sum", fill_value=0)
                 pivot = pivot.reindex(sorted(pivot.index))
-                bottom = pd.Series(0, index=pivot.index, dtype=float)
-                for site in WEBSITES:
-                    if site in pivot.columns and pivot[site].sum() > 0:
-                        ax1.bar(pivot.index.astype(str), pivot[site], bottom=bottom, label=site, color=WEBSITE_COLORS.get(site))
-                        bottom += pivot[site]
-                ax1.set_title("Total Income by Year (THB)")
-                trend_x, trend_y, trend_title = pivot.index.astype(str), period_totals.values, "Yearly Trend (THB)"
+                cats = pivot.index.astype(str)
+                fig1 = make_stacked_bar(cats, pivot, "Total Income by Year (THB)")
+                trend_x, trend_y, trend_title = cats, period_totals.values, "Yearly Trend (THB)"
             else:
                 pivot = scope.pivot_table(index="Month", columns="Website", values="THB", aggfunc="sum", fill_value=0)
                 pivot = pivot.reindex(range(1, 13), fill_value=0)
-                bottom = pd.Series(0, index=pivot.index, dtype=float)
-                for site in WEBSITES:
-                    if site in pivot.columns and pivot[site].sum() > 0:
-                        ax1.bar(MONTH_NAMES, pivot[site], bottom=bottom, label=site, color=WEBSITE_COLORS.get(site))
-                        bottom += pivot[site]
-                ax1.set_title(f"Monthly Income {selected_year} (THB)")
+                fig1 = make_stacked_bar(MONTH_NAMES, pivot, f"Monthly Income {selected_year} (THB)")
                 cumulative = period_totals.cumsum()
                 trend_x, trend_y, trend_title = MONTH_NAMES, cumulative.values, f"Cumulative Income {selected_year} (THB)"
-            ax1.legend(fontsize=7, loc="upper left", ncol=2)
-            ax1.tick_params(axis="x", rotation=45)
+
+            with row1_col1:
+                st.plotly_chart(fig1, use_container_width=True)
 
             # Panel 2: trend line
-            ax2 = axes[0, 1]
-            ax2.plot(trend_x, trend_y, marker="o", color="#e74c3c")
-            ax2.set_title(trend_title)
-            ax2.tick_params(axis="x", rotation=45)
+            fig2 = make_line(trend_x, trend_y, trend_title)
+            with row1_col2:
+                st.plotly_chart(fig2, use_container_width=True)
 
             # Panel 3: latest year monthly (always pinned)
-            ax3 = axes[1, 0]
             latest_year = int(filtered["Year"].max())
             latest_scope = filtered[filtered["Year"] == latest_year]
             latest_pivot = latest_scope.pivot_table(index="Month", columns="Website", values="THB", aggfunc="sum", fill_value=0)
             latest_pivot = latest_pivot.reindex(range(1, 13), fill_value=0)
-            bottom = pd.Series(0, index=latest_pivot.index, dtype=float)
-            for site in WEBSITES:
-                if site in latest_pivot.columns and latest_pivot[site].sum() > 0:
-                    ax3.bar(MONTH_NAMES, latest_pivot[site], bottom=bottom, label=site, color=WEBSITE_COLORS.get(site))
-                    bottom += latest_pivot[site]
-            ax3.set_title(f"Latest Year Monthly ({latest_year}, THB)")
-            ax3.legend(fontsize=7, loc="upper left", ncol=2)
-            ax3.tick_params(axis="x", rotation=45)
+            fig3 = make_stacked_bar(MONTH_NAMES, latest_pivot, f"Latest Year Monthly ({latest_year}, THB)")
+            with row2_col1:
+                st.plotly_chart(fig3, use_container_width=True)
 
-            # Panel 4: website share pie
-            ax4 = axes[1, 1]
-            if not website_totals.empty:
-                colors = [WEBSITE_COLORS.get(w, "#999999") for w in website_totals.index]
-                ax4.pie(website_totals.values, labels=website_totals.index, autopct="%1.0f%%", startangle=90, colors=colors)
+            # Panel 4: website share donut
             scope_label = "All-Time" if show_all_years else year_choice
-            ax4.set_title(f"Income Share by Website ({scope_label})")
-
-            fig.tight_layout()
-            st.pyplot(fig)
+            if not website_totals.empty:
+                fig4 = make_donut(website_totals.index, website_totals.values, f"Income Share by Website ({scope_label})")
+                with row2_col2:
+                    st.plotly_chart(fig4, use_container_width=True)
