@@ -204,6 +204,16 @@ def make_stacked_bar(categories, pivot_df, title):
                 marker_color=WEBSITE_COLORS.get(site, "#CCCCCC"),
                 hovertemplate=f"<b>{site}</b>: %{{y:,.0f}} THB<extra></extra>",
             ))
+
+    totals = pivot_df.sum(axis=1)
+    fig.add_trace(go.Scatter(
+        x=categories, y=totals, mode="markers",
+        marker=dict(opacity=0, size=1),
+        showlegend=False,
+        hovertemplate="<b>Total: %{y:,.0f} THB</b><extra></extra>",
+        name="Total",
+    ))
+
     fig.update_layout(
         barmode="stack",
         title=title,
