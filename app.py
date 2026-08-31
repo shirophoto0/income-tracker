@@ -221,6 +221,22 @@ def to_thb(amount, currency, usd_rate, eur_rate):
     return amount
 
 
+def rolling_12m_avg(df):
+    """Average monthly THB income over the trailing 12 calendar months (recurring, independent of the year filter)."""
+    if df.empty:
+        return 0.0
+    monthly = df.groupby(["Year", "Month"])["THB"].sum()
+    periods = pd.PeriodIndex(
+        year=monthly.index.get_level_values("Year"),
+        month=monthly.index.get_level_values("Month"),
+        freq="M",
+    )
+    monthly = pd.Series(monthly.values, index=periods).sort_index()
+    latest = monthly.index.max()
+    window = pd.period_range(end=latest, periods=12, freq="M")
+    return monthly.reindex(window, fill_value=0).sum() / 12
+
+
 # ============================================
 # Chart builders (Plotly — pastel, interactive, native fullscreen)
 # ============================================
@@ -390,11 +406,15 @@ with tab_dashboard:
             website_totals = scope.groupby("Website")["THB"].sum().sort_values(ascending=False)
             top_website = website_totals.idxmax() if not website_totals.empty else "-"
 
-            row1_c1, row1_c2 = st.columns(2)
+            ttm_avg = rolling_12m_avg(filtered)
+
+            row1_c1, row1_c2, row1_c3 = st.columns(3)
             with row1_c1:
                 metric_card("Total Income (THB)", f"{total_income:,.0f}")
             with row1_c2:
                 metric_card("Average per Month (THB)", f"{avg_per_month:,.0f}")
+            with row1_c3:
+                metric_card("Avg per Month — Last 12 Months (THB)", f"{ttm_avg:,.0f}")
 
             if website_choice == "All Websites" and not website_totals.empty:
                 ranked = website_totals.sort_values(ascending=False)
