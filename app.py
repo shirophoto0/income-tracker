@@ -226,11 +226,8 @@ def rolling_12m_avg(df):
     if df.empty:
         return 0.0
     monthly = df.groupby(["Year", "Month"])["THB"].sum()
-    periods = pd.PeriodIndex(
-        year=monthly.index.get_level_values("Year"),
-        month=monthly.index.get_level_values("Month"),
-        freq="M",
-    )
+    period_strs = [f"{y:04d}-{m:02d}" for y, m in monthly.index]
+    periods = pd.PeriodIndex(period_strs, freq="M")
     monthly = pd.Series(monthly.values, index=periods).sort_index()
     latest = monthly.index.max()
     window = pd.period_range(end=latest, periods=12, freq="M")
