@@ -9,25 +9,73 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="Income Tracker", page_icon="💰", layout="wide")
 
 st.markdown("""
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600&family=Prompt:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
+.stApp {
+    background: #FAF8F4;
+}
+h1, h2, h3 {
+    font-family: 'Prompt', sans-serif !important;
+    color: #2D3142 !important;
+}
+.app-header {
+    font-family: 'Prompt', sans-serif;
+    font-size: 2em;
+    font-weight: 700;
+    color: #2D3142;
+    margin-bottom: 4px;
+}
+.stTabs [data-baseweb="tab"] {
+    font-family: 'Sarabun', sans-serif;
+    color: #6B7280;
+}
+.stTabs [aria-selected="true"] {
+    color: #4E9A6E !important;
+}
+.stTabs [data-baseweb="tab-highlight"] {
+    background-color: #7C9885 !important;
+}
 .metric-card {
-    background: #ffffff;
-    border: 1px solid #e6e6e6;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    background: #FFFFFF;
+    border: 1px solid #E5E1D8;
+    border-radius: 14px;
+    box-shadow: 0 2px 10px rgba(45,49,66,0.06);
     padding: 16px 14px;
     text-align: center;
     margin-bottom: 14px;
 }
 .metric-card .metric-label {
+    font-family: 'Sarabun', sans-serif;
     font-size: 13px;
-    color: #888888;
+    color: #6B7280;
     margin-bottom: 6px;
 }
 .metric-card .metric-value {
+    font-family: 'Prompt', sans-serif;
     font-size: 21px;
+    font-weight: 600;
+    color: #2D3142;
+}
+.hero-card {
+    background: #FFFFFF;
+    border: 1px solid #E5E1D8;
+    border-radius: 14px;
+    box-shadow: 0 2px 10px rgba(45,49,66,0.06);
+    padding: 18px 14px;
+    text-align: center;
+    margin-bottom: 14px;
+}
+.hero-card .metric-label {
+    font-family: 'Sarabun', sans-serif;
+    font-size: 13px;
+    color: #6B7280;
+    margin-bottom: 6px;
+}
+.hero-card .metric-value {
+    font-family: 'Prompt', sans-serif;
+    font-size: 24px;
     font-weight: 700;
-    color: #333333;
+    color: #4E9A6E;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -36,6 +84,14 @@ st.markdown("""
 def metric_card(label, value):
     st.markdown(
         f'<div class="metric-card"><div class="metric-label">{label}</div>'
+        f'<div class="metric-value">{value}</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def hero_metric_card(label, value):
+    st.markdown(
+        f'<div class="hero-card"><div class="metric-label">{label}</div>'
         f'<div class="metric-value">{value}</div></div>',
         unsafe_allow_html=True,
     )
@@ -51,7 +107,7 @@ WEBSITE_COLORS = {
     "Shutterstock": "#AEDFF7", "Adobe": "#FFD8B8", "Getty": "#C3EDC0", "Dreamtime": "#FFB6B9",
     "123RF": "#D7C4F2", "Deposit": "#E3C9C1", "Freepik": "#FFCCE1", "Colorbox": "#D6D6D6",
 }
-TREND_LINE_COLOR = "#F6A9A9"
+TREND_LINE_COLOR = "#7C9885"
 INCOME_HEADERS = ["Year", "Month", "Website", "Currency", "Amount", "Entry Date", "Source", "Amount_THB"]
 MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -62,7 +118,7 @@ CHART_LAYOUT_DEFAULTS = dict(
     template="plotly_white",
     plot_bgcolor="rgba(0,0,0,0)",
     paper_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="Helvetica, Arial, sans-serif", size=13, color="#444444"),
+    font=dict(family="Prompt, Sarabun, sans-serif", size=13, color="#2D3142"),
     margin=dict(t=55, b=40, l=40, r=30),
 )
 
@@ -276,7 +332,7 @@ def make_line(x, y, title):
         x=x, y=y, mode="lines+markers",
         line=dict(color=TREND_LINE_COLOR, width=3),
         marker=dict(size=8, color=TREND_LINE_COLOR),
-        fill="tozeroy", fillcolor="rgba(246, 169, 169, 0.12)",
+        fill="tozeroy", fillcolor="rgba(124, 152, 133, 0.12)",
         hovertemplate="<b>%{x}</b><br>%{y:,.0f} THB<extra></extra>",
     ))
     fig.update_layout(title=title, **CHART_LAYOUT_DEFAULTS)
@@ -290,7 +346,7 @@ def make_donut(labels, values, title):
         labels=labels, values=values, hole=0.55,
         marker=dict(colors=[WEBSITE_COLORS.get(w, "#CCCCCC") for w in labels], line=dict(color="#FFFFFF", width=2)),
         textinfo="percent",
-        textfont=dict(size=12, color="#444444"),
+        textfont=dict(size=12, color="#2D3142"),
         hovertemplate="<b>%{label}</b><br>%{value:,.0f} THB<br>%{percent}<extra></extra>",
     ))
     fig.update_layout(
@@ -305,7 +361,7 @@ def make_donut(labels, values, title):
 # UI
 # ============================================
 
-st.title("💰 Stock Photo Income Tracker")
+st.markdown('<div class="app-header">💰 Stock Photo Income Tracker</div>', unsafe_allow_html=True)
 
 tab_dashboard, tab_log, tab_import = st.tabs(["📊 Dashboard", "📝 Log Income", "📂 Import Legacy Data"])
 
@@ -407,11 +463,11 @@ with tab_dashboard:
 
             row1_c1, row1_c2, row1_c3 = st.columns(3)
             with row1_c1:
-                metric_card("Total Income (THB)", f"{total_income:,.0f}")
+                hero_metric_card("Total Income (THB)", f"{total_income:,.0f}")
             with row1_c2:
-                metric_card("Average per Month (THB)", f"{avg_per_month:,.0f}")
+                hero_metric_card("Average per Month (THB)", f"{avg_per_month:,.0f}")
             with row1_c3:
-                metric_card("Avg per Month — Last 12 Months (THB)", f"{ttm_avg:,.0f}")
+                hero_metric_card("Avg per Month — Last 12 Months (THB)", f"{ttm_avg:,.0f}")
 
             if website_choice == "All Websites" and not website_totals.empty:
                 ranked = website_totals.sort_values(ascending=False)
@@ -482,7 +538,7 @@ with tab_dashboard:
 
             fig5 = go.Figure(go.Bar(
                 x=avg_years_x, y=avg_per_year.values,
-                marker_color="#B8E0D2",
+                marker_color="#A9C6B4",
                 hovertemplate="<b>%{x}</b><br>Avg: %{y:,.0f} THB/month<extra></extra>",
             ))
             fig5.update_layout(title="Average Income per Month, by Year (THB)", **CHART_LAYOUT_DEFAULTS)
